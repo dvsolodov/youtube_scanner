@@ -13,7 +13,6 @@ if ($currentHour >= 8 && $currentHour <= 22) {
 
     foreach ($cannelsList as $cannel) {
         //Парсинг с помощью file_get_contents
-        /*
         $page = file_get_contents($cannel);
 
         if ($page === false) {
@@ -21,9 +20,9 @@ if ($currentHour >= 8 && $currentHour <= 22) {
             file_put_contents('logs', $err, FILE_APPEND);
             continue;
         }
-        */
 
         //Парсинг с помощью библиотеки cURL
+        /*
         $curl = curl_init();
         $options = [
             CURLOPT_URL => str_replace(array("\r\n", "\n", "\r"), "", $cannel),
@@ -40,13 +39,43 @@ if ($currentHour >= 8 && $currentHour <= 22) {
             file_put_contents('logs', $curlErr, FILE_APPEND);
             continue;
         }
+        */
 
         preg_match_all(
-            '#<a\sid="video-title"[^>]+href="(?<link>[A-z|0-9]*?)"[^>]+>(?<title>.+)</a>#U',
+            '#"videoId":"(?<videoId>[^"]+)","watchEndpointSupportedOnesieConfig"#su',
             $page,
-            $res,
+            $videoId,
             PREG_PATTERN_ORDER
         );
+
+        preg_match_all(
+            '`"label":"(?<title>[^"]+\/*[^"]+)\sАвтор:\s`sU',
+            $page,
+            $title,
+            PREG_PATTERN_ORDER
+        );
+
+        $records = array_combine(
+            array_unique($videoId['videoId'], SORT_STRING),
+            array_unique($title['title'], SORT_STRING)
+        );
+
+        echo $cannel . '<br>';
+        echo 'videoId: ' . count(array_unique($videoId['videoId'], SORT_STRING)) . '<br>';
+        echo 'title: ' . count(array_unique($title['title'], SORT_STRING)) . '<br>';
+
+
+        foreach ($records as $videoId => $title) {
+            echo '<a href="https://www.youtube.com/watch?v=' . $videoId . '">' . $title . '</a><br>';
+        }
+
+        /*
+
+        echo '<pre>';
+        var_dump($records);
+        echo '</pre>';
+        exit;
+        */
 
         if (!empty($res['title'])) {
             for ($i = 0; $i <= count($res['title']); $i++) {
