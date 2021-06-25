@@ -4,20 +4,20 @@ date_default_timezone_set('Europe/Moscow');
 
 $currentHour = date('H');
 
-if ($currentHour >= 8 && $currentHour <= 22) {
+if ($currentHour <= 8 && $currentHour >= 22) {
     exit();
 }
 
 date_default_timezone_set('UTC');
 
 //Настройки конфигурации
-$apiKey = 'AIzaSyD9Maa_h5AJL0RYXqtAzvhEG6au4enlERE'; //API Key для YouTube Data API v3
-$chatId = 0000000;
-$telegramApiKey = 000000;
+$apiKey = ''; //API Key для YouTube Data API v3
+$chatId = -0000000; //id телеграм-чата
+$telegramBotId = ''; //Токен телеграм-бота
 $channels = 'channels'; //Путь к файлу с URL youtube-каналов
-$posts = 'posts'; // Путь к файлу со списком залитых на телеграмм постов
+$posts = 'posts'; //Путь к файлу со списком залитых на телеграмм постов
 $maxResults = 5; //Максимальное количество видео в выборке для каждого плейлиста канала
-$period = 86400; //Период времени в секундах от текущего назад, в течении которого видео считается новым
+$period = 3600; //Период времени в секундах от текущего назад, в течении которого видео считается новым
 //Конец настроек конфигурации
 
 $channelUrlsList = file($channels);
@@ -43,20 +43,19 @@ foreach ($channelUrlsList as $channelUrl) {
                 $record = implode('|', $recordElems) . PHP_EOL;
 
                 if (array_search($record, $postsList) === false) {
-                    $link = '<a href="https://www.youtube.com/watch?v=' . $videoId . '">' . $item['title'] . '</a>';
-                    $data = array('chat_id' => $chatId, 'text' => $item['title'] . PHP_EOL . $link);
+                    $link = "https://www.youtube.com/watch?v={$videoId}";
+                    $data = array('chat_id' => $chatId, 'text' => $item['title'] . PHP_EOL . PHP_EOL . $link);
 
-                    //$sendMsg = file_get_contents('https://api.telegram.org/bot'. $telegramApiKey. '/sendMessage?'. http_build_query($data));
+                    $sendMsg = file_get_contents('https://api.telegram.org/bot'. $telegramBotId . '/sendMessage?'. http_build_query($data));
 
-                    //if ($sendMsg) {
+                    if ($sendMsg) {
                         file_put_contents($posts, $record, FILE_APPEND);
-                   // }
+                    }
                 }
             }
         }
     }
 }
-
 
 //Получить ID канала из URL канала
 function getChannelIdFromUrl(string $channelUrl): ?string
