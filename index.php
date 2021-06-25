@@ -5,90 +5,98 @@ date_default_timezone_set('Europe/Moscow');
 $currentHour = date('H');
 
 if ($currentHour >= 8 && $currentHour <= 22) {
-    $chat_id = 99999999;
-    $api_key = 11111111;
+    exit();
+}
 
-    $cannelsList = file('cannels');
-    $postsList = file('posts');
+date_default_timezone_set('UTC');
 
-    foreach ($cannelsList as $cannel) {
-        //Парсинг с помощью file_get_contents
-        $page = file_get_contents($cannel);
+//Настройки конфигурации
+$apiKey = 'AIzaSyD9Maa_h5AJL0RYXqtAzvhEG6au4enlERE'; //API Key для YouTube Data API v3
+$chatId = 0000000;
+$telegramApiKey = 000000;
+$channels = 'channels'; //Путь к файлу с URL youtube-каналов
+$posts = 'posts'; // Путь к файлу со списком залитых на телеграмм постов
+$maxResults = 5; //Максимальное количество видео в выборке для каждого плейлиста канала
+$period = 86400; //Период времени в секундах от текущего назад, в течении которого видео считается новым
+//Конец настроек конфигурации
 
-        if ($page === false) {
-            $err = "Ошибка: парсинга.";
-            file_put_contents('logs', $err, FILE_APPEND);
-            continue;
-        }
+$channelUrlsList = file($channels);
+$postsList = file($posts);
+$channelIds = [];
+$playListIds = [];
 
-        //Парсинг с помощью библиотеки cURL
-        /*
-        $curl = curl_init();
-        $options = [
-            CURLOPT_URL => str_replace(array("\r\n", "\n", "\r"), "", $cannel),
-            CURLOPT_HEADER => false,
-            CURLOPT_RETURNTRANSFER => 1,
-            CURLOPT_FOLLOWLOCATION => 1,
-        ];
-        curl_setopt_array($curl, $options);
+foreach ($channelUrlsList as $channelUrl) {
+    $channelId = getChannelIdFromUrl($channelUrl);
+    $playListIds = getPlayListIdsByChannelId($channelId, $apiKey);
 
-        $page = curl_exec($curl);
+    foreach ($playListIds as $playListId) {
+        $playList = getVideosDataByPlayListId($playListId, $apiKey, $maxResults);
 
-        if ($page === false) {
-            $curlErr = "Ошибка cURL: " . curl_error($curl);
-            file_put_contents('logs', $curlErr, FILE_APPEND);
-            continue;
-        }
-        */
-
-        preg_match_all(
-            '#"videoId":"(?<videoId>[^"]+)","watchEndpointSupportedOnesieConfig"#su',
-            $page,
-            $videoId,
-            PREG_PATTERN_ORDER
-        );
-
-        preg_match_all(
-            '`"label":"(?<title>[^"]+\/*[^"]+)\sАвтор:\s`sU',
-            $page,
-            $title,
-            PREG_PATTERN_ORDER
-        );
-
-        $records = array_combine(
-            array_unique($videoId['videoId'], SORT_STRING),
-            array_unique($title['title'], SORT_STRING)
-        );
-
-        echo $cannel . '<br>';
-        echo 'videoId: ' . count(array_unique($videoId['videoId'], SORT_STRING)) . '<br>';
-        echo 'title: ' . count(array_unique($title['title'], SORT_STRING)) . '<br>';
-
-
-        foreach ($records as $videoId => $title) {
-            echo '<a href="https://www.youtube.com/watch?v=' . $videoId . '">' . $title . '</a><br>';
-        }
-
-        /*
-
-        echo '<pre>';
-        var_dump($records);
-        echo '</pre>';
-        exit;
-        */
-
-        if (!empty($res['title'])) {
-            for ($i = 0; $i <= count($res['title']); $i++) {
-                $title = $res['title'][$i];
-                $link = $res['link'][$i];
-                $record = $title . '|' . $link;
+        foreach ($playList as $videoId => $item) {
+            if ((time() - $period) <= strtotime($item['pubDate'])) {
+                $recordElems = [
+                    $item['pubDate'],
+                    $item['channelId'],
+                    $item['title'],
+                    $videoId,
+                ];
+                $record = implode('|', $recordElems) . PHP_EOL;
 
                 if (array_search($record, $postsList) === false) {
-                    file_put_contents('posts', $record, FILE_APPEND);
-                    $data = array('chat_id' => $chat_id, 'text' => $title . PHP_EOL . $link);
-                    file_get_contents('https://api.telegram.org/bot'. $api_key. '/sendMessage?'. http_build_query($data));
+                    $link = '<a href="https://www.youtube.com/watch?v=' . $videoId . '">' . $item['title'] . '</a>';
+                    $data = array('chat_id' => $chatId, 'text' => $item['title'] . PHP_EOL . $link);
+
+                    //$sendMsg = file_get_contents('https://api.telegram.org/bot'. $telegramApiKey. '/sendMessage?'. http_build_query($data));
+
+                    //if ($sendMsg) {
+                        file_put_contents($posts, $record, FILE_APPEND);
+                   // }
                 }
             }
         }
     }
+}
+
+
+//Получить ID канала из URL канала
+function getChannelIdFromUrl(string $channelUrl): ?string
+{
+    $pattern = '#^https:\/\/www.youtube.com\/channel\/(?<channelId>.+?)\/videos$#';
+    $pregMatch = preg_match($pattern, $channelUrl, $matches);
+
+    if ($pregMatch) {
+        return $matches['channelId'];
+    }
+
+    return null;
+}
+
+//Получить ID плейлистов канала по ID канала
+function getPlayListIdsByChannelId(string $channelId, string $apiKey): array
+{
+    $apiUrl = "https://www.googleapis.com/youtube/v3/playlists?channelId={$channelId}&maxResults=100&key={$apiKey}";
+    $playLists = json_decode(file_get_contents($apiUrl), true);
+    $playListIds = [];
+
+    foreach ($playLists['items'] as $playList) {
+        $playListIds[] = $playList['id'];
+    }
+
+    return $playListIds;
+}
+
+//Получить данные на все видео одного плейлиста по его ID
+function getVideosDataByPlayListId(string $playListId, string $apiKey, int $maxResults): array
+{
+    $apiUrl = "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={$playListId}&maxResults={$maxResults}&key={$apiKey}";
+    $videos = json_decode(file_get_contents($apiUrl), true);
+    $videosData = [];
+
+    foreach ($videos['items'] as $video) {
+        $videosData[$video['snippet']['resourceId']['videoId']]['title'] = $video['snippet']['title'];
+        $videosData[$video['snippet']['resourceId']['videoId']]['pubDate'] = $video['snippet']['publishedAt'];
+        $videosData[$video['snippet']['resourceId']['videoId']]['channelId'] = $video['snippet']['channelId'];
+    }
+
+    return $videosData;
 }
