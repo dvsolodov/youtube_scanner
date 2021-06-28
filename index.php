@@ -11,17 +11,16 @@ if ($currentHour <= 8 && $currentHour >= 22) {
 date_default_timezone_set('UTC');
 
 //Настройки конфигурации
-$apiKey = ''; //API Key для YouTube Data API v3
+$apiKey = '0000000'; //API Key для YouTube Data API v3
 $chatId = -0000000; //id телеграм-чата
-$telegramBotId = ''; //Токен телеграм-бота
+$telegramBotId = '00000000'; //Токен телеграм-бота
 $channels = 'channels'; //Путь к файлу с URL youtube-каналов
 $posts = 'posts'; //Путь к файлу со списком залитых на телеграмм постов
-$maxResults = 5; //Максимальное количество видео в выборке для каждого плейлиста канала
-$period = 3600; //Период времени в секундах от текущего назад, в течении которого видео считается новым
+$maxResults = 10; //Максимальное количество видео в выборке для каждого плейлиста канала
+$period = 36000; //Период времени в секундах от текущего назад, в течении которого видео считается новым
 //Конец настроек конфигурации
 
 $channelUrlsList = file($channels);
-$postsList = file($posts);
 $channelIds = [];
 $playListIds = [];
 
@@ -33,6 +32,10 @@ foreach ($channelUrlsList as $channelUrl) {
         $playList = getVideosDataByPlayListId($playListId, $apiKey, $maxResults);
 
         foreach ($playList as $videoId => $item) {
+            if ($item['title'] == "Private video") {
+                continue;
+            }
+
             if ((time() - $period) <= strtotime($item['pubDate'])) {
                 $recordElems = [
                     $item['pubDate'],
@@ -41,6 +44,7 @@ foreach ($channelUrlsList as $channelUrl) {
                     $videoId,
                 ];
                 $record = implode('|', $recordElems) . PHP_EOL;
+                $postsList = file($posts);
 
                 if (array_search($record, $postsList) === false) {
                     $link = "https://www.youtube.com/watch?v={$videoId}";
